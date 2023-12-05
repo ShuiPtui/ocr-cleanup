@@ -21,37 +21,27 @@ image4 = cv2.cvtColor(image4, cv2.COLOR_BGR2GRAY)
 image5 = cv2.cvtColor(image5, cv2.COLOR_BGR2GRAY)
 image6 = cv2.cvtColor(image6, cv2.COLOR_BGR2GRAY)
 
+
 blurred_img2 = cv2.GaussianBlur(image2, (5,5), 0)
 edges_img2 = cv2.Canny(blurred_img2, 50, 150)
+ret, thresh1 = cv2.threshold(edges_img2, 127, 255, cv2.THRESH_BINARY)
 
 
-ret, thresh1 = cv2.threshold(image1, 0, 255, cv2.THRESH_BINARY)
-thresh2 = cv2.adaptiveThreshold(image2, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,11,2)
-rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (20,20))
-dilation = cv2.dilate(thresh1, rect_kernel, iterations=1)
-contours, hierarchy = cv2.findContours(thresh2, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+cv2.imshow('image', thresh1) 
+  
+# waits for user to press any key 
+# (this is necessary to avoid Python kernel form crashing) 
+cv2.waitKey(0) 
+  
+# closing all open windows 
+cv2.destroyAllWindows() 
 
 # print(pt.image_to_string(image1)) ###Image that has black text
-print(pt.image_to_string(edges_img2)) ###Image that has stop-sign.jpg. Shouldn't work because text is white
+print(pt.image_to_string(thresh1, lang='eng', config='--psm 6')) #Stop is read when I changed the config. I presume that the config is important
 # print(pt.image_to_string(image3))
 # print(pt.image_to_string(image4))
 # print(pt.image_to_string(image5))
 # print(pt.image_to_string(image6))
 
-img = image6.copy()
 
 
-
-# for cnt in contours:
-#     x, y, w, h = cv2.boundingRect(cnt)
-     
-#     # Drawing a rectangle on copied image
-#     rect = cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-     
-#     # Cropping the text block for giving input to OCR
-#     cropped = img[y:y + h, x:x + w]
-     
-#     # Apply OCR on the cropped image
-#     text = pt.image_to_string(cropped)
-
-#     print(text)
