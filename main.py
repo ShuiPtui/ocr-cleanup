@@ -30,7 +30,7 @@ h, w = image5.shape[:2]
 image5 = cv2.resize(image5, (1000, int(h * (1000 / float(w)))))
 blurred_img1 = cv2.GaussianBlur(image5, (5,5), 0)
 edges_img1 = cv2.Canny(blurred_img1, 50, 150)
-ret, thresh1 = cv2.threshold(edges_img1, 127, 255, cv2.THRESH_BINARY)
+ret, thresh1 = cv2.threshold(edges_img1, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
 #pytesseract.image_to_boxes returns pretty useful information for replacing text 
 # <character> <left> <bottom> <right> <top> <confidence>
@@ -59,25 +59,25 @@ print('Max y: ' + str(max_y))
 #pytesseract.image_to_data can provide more info
 data = pt.image_to_data(thresh1, output_type=pt.Output.DICT, config='--psm 11 --oem 3')
 num_boxes = len(data['level'])
-for i in range(num_boxes):
-    confidence = data['conf'][i]
-    if confidence > 0:
-        print(confidence)
-        (x, y, w, h) = (data['left'][i], data['top'][i], data['width'][i], data['height'][i])
-        crop = image5[y:y+h, x:x+w]
-        pil_image = Image.fromarray(crop)
+# for i in range(num_boxes):
+#     confidence = data['conf'][i]
+#     if confidence >= 30:
+#         print(confidence)
+#         (x, y, w, h) = (data['left'][i], data['top'][i], data['width'][i], data['height'][i])
+#         crop = image5[y:y+h, x:x+w]
+#         pil_image = Image.fromarray(crop)
 
-        blurred_img2 = cv2.GaussianBlur(np.array(pil_image), (5,5), 0)
-        edges_img2 = cv2.Canny(blurred_img2, 50, 150)
-        ret, thresh2 = cv2.threshold(edges_img2, 127, 255, cv2.THRESH_BINARY)
+#         blurred_img2 = cv2.GaussianBlur(np.array(pil_image), (5,5), 0)
+#         edges_img2 = cv2.Canny(blurred_img2, 50, 150)
+#         ret, thresh2 = cv2.threshold(edges_img2, 0, 255, cv2.THRESH_BINARY)
 
 
 
-        print(pt.image_to_string(thresh2, lang='eng', config='--oem 3 --psm 8')) #Stop is read when I changed the config. I presume that the config is important
-        plt.imshow(thresh2)
-        plt.axis('off')  # Turn off axis labels
-        plt.show()
-        cv2.rectangle(image5a, (x, y), (x + w, y + h), (0, 255, 0), 2) #show boundary boxes
+#         print(pt.image_to_string(thresh2, lang='eng', config='--oem 3 --psm 8')) #Stop is read when I changed the config. I presume that the config is important
+#         plt.imshow(thresh2)
+#         plt.axis('off')  # Turn off axis labels
+#         plt.show()
+#         cv2.rectangle(image5a, (x, y), (x + w, y + h), (0, 255, 0), 2) #show boundary boxes
 
 
 # print('Data info: {}'.format(data))
@@ -94,7 +94,7 @@ cv2.waitKey(0)
 # closing all open windows 
 cv2.destroyAllWindows() 
 
-# print(pt.image_to_string(thresh1, lang='eng', config='--psm 6')) #Stop is read when I changed the config. I presume that the config is important
+print(pt.image_to_string(thresh1, lang='eng', config='--psm 11')) #Stop is read when I changed the config. I presume that the config is important
 
 
 # Page segmentation modes:
