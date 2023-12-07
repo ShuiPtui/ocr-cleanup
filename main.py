@@ -2,15 +2,24 @@
 TODO:
         1. Add more buttons to dynamic change image preprocessing
         2. Add a crop function to the interface
-        3. Add a button that opens a help window
-        4. Add a button that reverts displayed image to original image
-        5. ***IMPORTANT*** Use image_to_data to find boundary boxes as a way to determine text location  ***IMPORTANT***
-        6. ***IMPORTANT*** Implement text deletion from image ***IMPORTANT***
+        
+        
+
+        
+        
+
+        
         7. ***IMPORTANT*** Implement text drawing (PIL or cv2) ***IMPORTANT***
+
         8. Implement some translation API (even chatgpt works)
         9. Perform additional computer photography stuff
         10. Replace existing code with own code (Optional)
 
+COMPLETED:
+        3. Add a button that opens a help window
+        4. Add a button that reverts displayed image to original image
+        5. ***IMPORTANT*** Use image_to_data to find boundary boxes as a way to determine text location  ***IMPORTANT***
+        6. ***IMPORTANT*** Implement text deletion from image ***IMPORTANT***
 """
 
 
