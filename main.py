@@ -4,9 +4,9 @@ TODO:
         2. Add a crop function to the interface
         3. Add a button that opens a help window
         4. Add a button that reverts displayed image to original image
-        5. Use image_to_data to find boundary boxes as a way to determine text location
-        6. Implement text deletion from image
-        7. Implement text drawing (PIL or cv2)
+        5. ***IMPORTANT*** Use image_to_data to find boundary boxes as a way to determine text location  ***IMPORTANT***
+        6. ***IMPORTANT*** Implement text deletion from image ***IMPORTANT***
+        7. ***IMPORTANT*** Implement text drawing (PIL or cv2) ***IMPORTANT***
         8. Implement some translation API (even chatgpt works)
         9. Perform additional computer photography stuff
         10. Replace existing code with own code (Optional)
@@ -63,6 +63,7 @@ def image_to_bytes(img):
     return img_data
 
 def interface(img):
+    original_img = img.copy()
     h, w = img.shape[:2]
     
     main_layout = create_main_layout(img)
@@ -80,8 +81,11 @@ def interface(img):
         elif event == 'PREPROCESS':
             psmode = int(values['PSM'])
             oemode = int(values['OEM'])
-            # custom_config = r'--oem{} --psm{}'.format(oemode, psmode)
+            custom_config = r'--oem {} --psm {}'.format(oemode, psmode)
             processed_img = image_preprocessing(img, invert_toggle, morpho_toggle)
+            results = image_ocr(processed_img, custom_config)
+            text_removed_img = text_removal(img, invert_toggle)
+
             main_window['IMAGE'].update(data=image_to_bytes(processed_img))
             h, w = processed_img.shape[:2]
             main_window.size = (w+400, h+100)
@@ -98,6 +102,16 @@ def interface(img):
             main_window['MORPHO'].update(
                 text='Opening' if morpho_toggle else 'Dilation', 
                 button_color=('black', '#d7c4a4') if morpho_toggle else ('white', '#283b5b'))
+        elif event == 'HELP':
+            # Open a new window with help information
+            sg.popup('Help ', 'Use the buttons to preprocess the image and perform OCR.', title='Help')
+
+        elif event == 'REVERT':
+            # Revert to the original image
+            main_window['IMAGE'].update(data=image_to_bytes(original_img))
+            h, w = original_img.shape[:2]
+            main_window.size = (w + 400, h + 100)
+        
 
 def create_main_layout(img):
     
@@ -150,26 +164,35 @@ def create_main_layout(img):
 
     oem = sg.Text('OEM')
 
-    left_col = sg.Column([
-        [image],
-        [exit_btn]
-    ])
+    help_btn = sg.Button(
+        button_text='Help',
+        key='HELP'
+    )
+
+    revert_btn = sg.Button(
+        button_text='Revert to Original',
+        key='REVERT'
+    )
 
     options_col = sg.Column([
         [psm, psm_slider],
         [oem, oem_slider],
         [invert, morpho_transformation],
-        [perform_preprocessing]
+        [perform_preprocessing],
+        [help_btn],
+        [revert_btn]
     ])
 
-    
+    left_col = sg.Column([
+        [image],
+        [exit_btn]
+    ])
 
     layout = [
         [left_col, options_col]
     ]
 
     return layout
-
 
 def display_image(img):
     cv2.imshow('Image', img)
@@ -178,16 +201,17 @@ def display_image(img):
 def image_preprocessing(img, invert_state=False, morpho_state=False):
     h, w = img.shape[:2]
     img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
     
-    blurred_img1 = cv2.GaussianBlur(img, (3,3), 0)
+    blurred_img1 = cv2.GaussianBlur(gray, (3,3), 0)
     # edges_img1 = cv2.Canny(blurred_img1, 50, 150) #shows edges of the image
     if invert_state:
         thresh = cv2.threshold(blurred_img1, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] #threshold attributes may need to be changed
     else:
         thresh = cv2.threshold(blurred_img1, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3)) 
 
     #perform a morphological transformation. We could add more variety depending on the task at hand
     if morpho_state:
@@ -196,15 +220,61 @@ def image_preprocessing(img, invert_state=False, morpho_state=False):
     else:
         dilation = cv2.dilate(thresh, kernel, iterations = 1) #Good for thin text
         #invert the image (we want the text to be black and foreground to be white)
+        # invert = 255 - dilation
         invert = 255 - dilation
 
     return invert
 
-def image_ocr(img):
-    custom_config = r'--oem 3 --psm 6'
-    results = pt.image_to_string(img, lang='eng', config=custom_config)
-    data = pt.image_to_data(img, lang='eng', config=custom_config, output_type=pt.Output.DICT)
-    print(data)
+
+def text_removal(img, invert_state=False):
+    h, w = img.shape[:2]
+    img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    blurred_img = cv2.GaussianBlur(gray, (3,3), 0)
+    if invert_state:
+        thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] #threshold attributes may need to be changed
+    else:
+        thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+
+
+    close_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15,3))
+    close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, close_kernel, iterations=1)
+
+    dilation_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1)) #values affect the removal
+
+    #perform a morphological transformation. We could add more variety depending on the task at hand
+    dilation = cv2.dilate(close, dilation_kernel, iterations = 1)
+
+    cnts = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+    for c in cnts:
+        area = cv2.contourArea(c)
+        if area > 800 and area < 15000:
+            x,y,w,h = cv2.boundingRect(c)
+            print(x, y, x+w, y+h)
+            cv2.rectangle(img, (x, y), (x + w, y + h), (52, 53, 65), -1) #we can find dominant color using k-means or perform image reconstruction
+
+    cv2.imshow('image', img)
+    cv2.waitKey()
+    return img
+
+def image_ocr(img, config=r'--oem 3 --psm 6'):
+
+    results = pt.image_to_string(img, lang='eng', config=config)
+    data = pt.image_to_data(img, lang='eng', config=config, output_type=pt.Output.DICT)
+    print(results)
+
+    num_words = len(data['text'])
+    for n in range(num_words):
+        if data['text'][n].strip():
+            left = data['left'][n]
+            top = data['top'][n]
+            width = data['width'][n]
+            height = data['height'][n]
+            print(f"Bounding Box {n + 1}: Left={left}, Top={top}, Width={width}, Height={height}, Text={data['text'][n]}")
+
+
+
     return results
 
 def check_results(text):
