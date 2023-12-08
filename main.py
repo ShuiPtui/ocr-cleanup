@@ -1,7 +1,7 @@
 """
 TODO:
-        1. Add more buttons to dynamic change image preprocessing
-        2. Add a crop function to the interface
+        1. Add more buttons to dynamic change image preprocessing (optional; current methods should be good enough for basic stuff)
+        2. Add a crop function to the interface (optional; user can just provide cropped images)
         
         
 
@@ -9,11 +9,22 @@ TODO:
         
 
         
-        7. ***IMPORTANT*** Implement text drawing (PIL or cv2) ***IMPORTANT***
+        7. ***IMPORTANT*** Implement text drawing (PIL or cv2) ***IMPORTANT*** (In progress)
 
         8. Implement some translation API (even chatgpt works)
-        9. Perform additional computer photography stuff
+        9. Perform additional computer photography stuff (perhaps making special fonts or giving replaced text some effect)
         10. Replace existing code with own code (Optional)
+        11. Implement another button to handle OCR and text replacement
+
+Current issues:
+        - Font size needs to be dynamically generated to either best fit the boundary or perform some
+        lazy method to resize it (not best fit)
+        - Currently, widths are increased to crazy sizes, possible culprit is the method to deal with
+        way too long text 
+        (EDIT: I believe the error is caused by how I handle the excess text; fixing
+        the way it saves the excess text may prevent the error.)
+        (EDIT 2: Pretty sure the error is how I am saving the excess text)
+
 
 COMPLETED:
         3. Add a button that opens a help window
@@ -26,7 +37,7 @@ COMPLETED:
 
 import pytesseract as pt
 import cv2
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 import numpy as np
 # import nltk                            #will need to install #replaced by enchant
@@ -93,7 +104,12 @@ def interface(img):
             custom_config = r'--oem {} --psm {}'.format(oemode, psmode)
             processed_img = image_preprocessing(img, invert_toggle, morpho_toggle)
             results = image_ocr(processed_img, custom_config)
-            text_removed_img = text_removal(img, invert_toggle)
+            text_removed_img, positions = text_removal(img, invert_toggle)
+            corrections = check_results(results)
+            
+            pil_copy = Image.fromarray(text_removed_img)
+            text_adder(corrections, pil_copy, positions)
+            pil_copy.show()
 
             main_window['IMAGE'].update(data=image_to_bytes(processed_img))
             h, w = processed_img.shape[:2]
@@ -234,7 +250,6 @@ def image_preprocessing(img, invert_state=False, morpho_state=False):
 
     return invert
 
-
 def text_removal(img, invert_state=False):
     h, w = img.shape[:2]
     img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
@@ -256,16 +271,90 @@ def text_removal(img, invert_state=False):
 
     cnts = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+
+    positions = []
+
     for c in cnts:
         area = cv2.contourArea(c)
         if area > 800 and area < 15000:
             x,y,w,h = cv2.boundingRect(c)
-            print(x, y, x+w, y+h)
+            print(x, y, w, h)
+            positions.append([x, y, w, h])
+            # cv2.imshow('image', img[y:y+h, x:x+w])
+            # cv2.waitKey()
             cv2.rectangle(img, (x, y), (x + w, y + h), (52, 53, 65), -1) #we can find dominant color using k-means or perform image reconstruction
 
-    cv2.imshow('image', img)
-    cv2.waitKey()
-    return img
+    # cv2.imshow('image', img)
+    # cv2.waitKey()
+    return img, positions
+
+def text_adder(text, img, positions):
+    
+    draw = ImageDraw.Draw(img)
+   
+    print(positions[1][2])
+    excess = ''
+    # print(len(text))
+    for i in range(len(text)):
+        h = positions[i][3]
+        print('This is text height: {}'.format(h))
+
+        # text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic
+        text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', 6) #temporary size
+        line = text[i]
+        print(i)
+
+        ### Potential cause of error
+        if len(excess) > 0:
+            line = excess + ' ' + line
+            excess = ''
+
+        print(line)
+        #Fix the widths
+        text_width = draw.textlength(line, font=text_font)
+        max_width = positions[i][2]
+
+
+
+        print('This is text width {}'.format(text_width))
+        print('This is max width {}'.format(max_width))
+        start_point = (positions[i][0], positions[i][1])
+        if text_width > max_width:
+            print('exception')
+            # Adjust the text and get the excess text
+            adjusted_text, excess_text = fix_text_length(line, text_font, max_width)
+            
+            excess = excess_text
+            
+            # Draw the adjusted text on the image
+            draw.text(start_point, adjusted_text, font=text_font, fill=(255, 255, 255))  # White text color
+
+            # # Return the excess text for further processing
+            # return excess_text
+        else:
+            # Draw the original text on the image
+            
+            draw.text(start_point, text, font=text_font, fill=(255, 255, 255))  # White text color
+
+            # # No excess text
+            # return ''
+    print('Completed')
+
+def fix_text_length(text, text_font, max_width):
+    draw = ImageDraw.Draw(Image.new('RGB', (1,1)))
+    text_width = draw.textlength(text, font=text_font)
+    
+    excess_text = ''
+
+    while text_width > max_width and len(text) > 0:
+        #potential cause of error (most likely cause)
+        excess_text = excess_text + text[:-1]
+
+        text = text[:-1]
+        text_width = draw.textlength(text, font=text_font)
+
+    return text, excess_text
+
 
 def image_ocr(img, config=r'--oem 3 --psm 6'):
 
