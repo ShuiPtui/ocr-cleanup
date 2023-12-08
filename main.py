@@ -48,6 +48,7 @@ import enchant
 import PySimpleGUI as sg
 import io
 from googletrans import Translator
+from sklearn.cluster import KMeans
 
 # nltk.download('brown') #downloads required set; slower than nltk.corpus.words but is able to deal with numbers and capitals #Edit: Enchant is so much faster
 #include 'pytesseract.pytesseract.tesseract_cmd = r'<full_path_to_your_tesseract_executable>' if you don't have tesseract in your PATH
@@ -160,7 +161,6 @@ def interface(img):
             h, w = original_img.shape[:2]
             main_window.size = (w + 400, h + 100)
         
-
 def create_main_layout(img):
     
     img_data = image_to_bytes(img)
@@ -300,42 +300,45 @@ def text_removal(img, invert_state=False):
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
 
     positions = []
-    i = 0
+
+    pixels = img.reshape((-1,3))
+    kmeans = KMeans(n_clusters=5)
+    kmeans.fit(pixels)
+    colors = kmeans.cluster_centers_
+    counts = np.bincount(kmeans.labels_)
+    dominant_color = colors[counts.argmax()]
+
     for c in cnts:
         area = cv2.contourArea(c)
         if area > 800 and area < 15000:
             x,y,w,h = cv2.boundingRect(c)
-            i+=1
-            print(i)
+            
             
             positions.append([x, y, w, h])
             # cv2.imshow('image', img[y:y+h, x:x+w])
             # cv2.waitKey()
-            cv2.rectangle(img, (x, y), (x + w, y + h), (52, 53, 65), -1) #we can find dominant color using k-means or perform image reconstruction
+            cv2.rectangle(img, (x, y), (x + w, y + h), (dominant_color), -1) #we can find dominant color using k-means or perform image reconstruction
 
     # cv2.imshow('image', img)
     # cv2.waitKey()
     return img, positions
 
 def text_adder(text, img, positions):
-    print(text)
-    # text = text[::-1]
-    print(text)
-    print(positions)
+    
     positions = positions[::-1]
-    print(positions)
+    
     draw = ImageDraw.Draw(img)
     
     excess = ''
-    # print(len(text))
+    
     for i in range(len(text)):
         h = positions[-i][3]
-        # print('This is text height: {}'.format(h))
+        
         font = '/usr/share/fonts/truetype/Nakula/nakula.ttf'
         current_h = h
-        text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic
-        # text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', 6) #temporary size
-        line = translate_text(text[i])
+        text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic. Change font to handle other languages
+        
+        line = translate_text(text[i], 'fr') #change string to handle certain languages
         
         if len(excess) > 0:
             line = excess + ' ' + line
