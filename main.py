@@ -3,22 +3,14 @@ TODO:
         1. Add more buttons to dynamic change image preprocessing (optional; current methods should be good enough for basic stuff)
         2. Add a crop function to the interface (optional; user can just provide cropped images)
         
+  
         
-
-        
-        
-
-        
-        7. ***IMPORTANT*** Implement text drawing (PIL or cv2) ***IMPORTANT*** (In progress)
-
-        8. Implement some translation API (even chatgpt works)
         9. Perform additional computer photography stuff (perhaps making special fonts or giving replaced text some effect)
         10. Replace existing code with own code (Optional)
-        11. Implement another button to handle OCR and text replacement
+        
 
 Current issues:
-        - Font size needs to be dynamically generated to either best fit the boundary or perform some
-        lazy method to resize it (not best fit)
+        - None so far
         
 
 Fixed issues:
@@ -28,12 +20,17 @@ Fixed issues:
         the way it saves the excess text may prevent the error.)
         (EDIT 2: Pretty sure the error is how I am saving the excess text)
         (EDIT 3: Fixed, it was due to how I was storing excess string)
+        - Font size needs to be dynamically generated to either best fit the boundary or perform some
+        lazy method to resize it (not best fit)
 
 COMPLETED:
         3. Add a button that opens a help window
         4. Add a button that reverts displayed image to original image
         5. ***IMPORTANT*** Use image_to_data to find boundary boxes as a way to determine text location  ***IMPORTANT***
         6. ***IMPORTANT*** Implement text deletion from image ***IMPORTANT***
+        7. ***IMPORTANT*** Implement text drawing (PIL or cv2) ***IMPORTANT***
+        8. Implement some translation API (even chatgpt works)
+        11. Implement another button to handle OCR and text replacement 
 """
 
 
@@ -50,6 +47,7 @@ import re
 import enchant
 import PySimpleGUI as sg
 import io
+from googletrans import Translator
 
 # nltk.download('brown') #downloads required set; slower than nltk.corpus.words but is able to deal with numbers and capitals #Edit: Enchant is so much faster
 #include 'pytesseract.pytesseract.tesseract_cmd = r'<full_path_to_your_tesseract_executable>' if you don't have tesseract in your PATH
@@ -77,6 +75,11 @@ import io
 #   1   Neural nets LSTM (Long Short Term Memory) only
 #   2   Legacy Tesseract Combined with LSTM
 #   3   Default OCR mode
+
+def translate_text(text, target='fr'):
+    translator = Translator()
+    translation = translator.translate(text, dest=target)
+    return translation.text
 
 def image_to_bytes(img):
     pil_image = Image.fromarray(img)
@@ -106,15 +109,32 @@ def interface(img):
             oemode = int(values['OEM'])
             custom_config = r'--oem {} --psm {}'.format(oemode, psmode)
             processed_img = image_preprocessing(img, invert_toggle, morpho_toggle)
+            # results = image_ocr(processed_img, custom_config)
+            # text_removed_img, positions = text_removal(img, invert_toggle)
+            # corrections = check_results(results)
+            
+            # pil_copy = Image.fromarray(text_removed_img)
+            # text_adder(corrections, pil_copy, positions)
+            
+
+            main_window['IMAGE'].update(data=image_to_bytes(processed_img))
+            h, w = processed_img.shape[:2]
+            main_window.size = (w+400, h+100)
+        
+        elif event == 'TRANSLATE':
+            #Perform the following if we assume that they do not perform processing
+            psmode = int(values['PSM'])
+            oemode = int(values['OEM'])
+            custom_config = r'--oem {} --psm {}'.format(oemode, psmode)
+            processed_img = image_preprocessing(img, invert_toggle, morpho_toggle)
             results = image_ocr(processed_img, custom_config)
             text_removed_img, positions = text_removal(img, invert_toggle)
             corrections = check_results(results)
             
             pil_copy = Image.fromarray(text_removed_img)
             text_adder(corrections, pil_copy, positions)
-            pil_copy.show()
-
-            main_window['IMAGE'].update(data=image_to_bytes(processed_img))
+            
+            main_window['IMAGE'].update(data=image_to_bytes(np.array(pil_copy)))
             h, w = processed_img.shape[:2]
             main_window.size = (w+400, h+100)
 
@@ -158,6 +178,11 @@ def create_main_layout(img):
     perform_preprocessing = sg.Button(
         button_text='Perform Preprocessing',
         key='PREPROCESS'
+    )
+
+    translate = sg.Button(
+        button_text='Translate Image',
+        key='TRANSLATE'
     )
 
     invert = sg.Button(
@@ -206,9 +231,8 @@ def create_main_layout(img):
         [psm, psm_slider],
         [oem, oem_slider],
         [invert, morpho_transformation],
-        [perform_preprocessing],
-        [help_btn],
-        [revert_btn]
+        [perform_preprocessing, translate],
+        [help_btn, revert_btn]
     ])
 
     left_col = sg.Column([
@@ -301,17 +325,17 @@ def text_adder(text, img, positions):
     positions = positions[::-1]
     print(positions)
     draw = ImageDraw.Draw(img)
-   
     
     excess = ''
     # print(len(text))
     for i in range(len(text)):
         h = positions[-i][3]
         # print('This is text height: {}'.format(h))
-
+        font = '/usr/share/fonts/truetype/Nakula/nakula.ttf'
+        current_h = h
         text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic
         # text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', 6) #temporary size
-        line = text[i]
+        line = translate_text(text[i])
         
         if len(excess) > 0:
             line = excess + ' ' + line
@@ -321,13 +345,13 @@ def text_adder(text, img, positions):
         max_width = positions[i][2]
 
         start_point = (positions[i][0], positions[i][1]-10)
-        
+
 
         if text_width > max_width:
             # print('exception')
             # Adjust the text and get the excess text
-            adjusted_text, excess_text = fix_text_length(line, text_font, max_width)
-            
+            adjusted_text, excess_text, new_font = resize_text(line, font, current_h, max_width)
+            text_font = new_font
             excess = excess_text
             
             # Draw the adjusted text on the image
@@ -356,6 +380,25 @@ def fix_text_length(text, text_font, max_width):
 
     return text, excess_text
 
+#alternative method to handle really long lines
+def resize_text(text, font, current_h, max_width):
+
+    draw = ImageDraw.Draw(Image.new('RGB', (1,1)))
+
+
+    text_font = ImageFont.truetype(font, current_h)
+    text_width = draw.textlength(text, font=text_font)
+
+    while text_width > max_width and current_h > 5:
+        current_h -=1
+        text_font = ImageFont.truetype(font, current_h)
+        text_width = draw.textlength(text, font=text_font)
+
+    if current_h <= 5:
+        text, excess = fix_text_length(text, text_font, max_width)
+        return text, excess, text_font
+
+    return text, '', text_font
 
 def image_ocr(img, config=r'--oem 3 --psm 6'):
 
