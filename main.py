@@ -19,12 +19,15 @@ TODO:
 Current issues:
         - Font size needs to be dynamically generated to either best fit the boundary or perform some
         lazy method to resize it (not best fit)
+        
+
+Fixed issues:
         - Currently, widths are increased to crazy sizes, possible culprit is the method to deal with
         way too long text 
         (EDIT: I believe the error is caused by how I handle the excess text; fixing
         the way it saves the excess text may prevent the error.)
         (EDIT 2: Pretty sure the error is how I am saving the excess text)
-
+        (EDIT 3: Fixed, it was due to how I was storing excess string)
 
 COMPLETED:
         3. Add a button that opens a help window
@@ -273,12 +276,14 @@ def text_removal(img, invert_state=False):
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
 
     positions = []
-
+    i = 0
     for c in cnts:
         area = cv2.contourArea(c)
         if area > 800 and area < 15000:
             x,y,w,h = cv2.boundingRect(c)
-            print(x, y, w, h)
+            i+=1
+            print(i)
+            
             positions.append([x, y, w, h])
             # cv2.imshow('image', img[y:y+h, x:x+w])
             # cv2.waitKey()
@@ -289,38 +294,40 @@ def text_removal(img, invert_state=False):
     return img, positions
 
 def text_adder(text, img, positions):
-    
+    print(text)
+    text = text[::-1]
+    print(text)
+    positions = positions[::-1]
+
     draw = ImageDraw.Draw(img)
    
-    print(positions[1][2])
+    
     excess = ''
     # print(len(text))
     for i in range(len(text)):
-        h = positions[i][3]
-        print('This is text height: {}'.format(h))
+        h = positions[-i][3]
+        # print('This is text height: {}'.format(h))
 
-        # text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic
-        text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', 6) #temporary size
+        text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic
+        # text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', 6) #temporary size
         line = text[i]
-        print(i)
+        
 
-        ### Potential cause of error
+        
         if len(excess) > 0:
             line = excess + ' ' + line
             excess = ''
 
-        print(line)
-        #Fix the widths
+        # print('Line = {}'.format(line))
+        
+        
+
         text_width = draw.textlength(line, font=text_font)
         max_width = positions[i][2]
 
-
-
-        print('This is text width {}'.format(text_width))
-        print('This is max width {}'.format(max_width))
         start_point = (positions[i][0], positions[i][1])
         if text_width > max_width:
-            print('exception')
+            # print('exception')
             # Adjust the text and get the excess text
             adjusted_text, excess_text = fix_text_length(line, text_font, max_width)
             
@@ -330,28 +337,25 @@ def text_adder(text, img, positions):
             draw.text(start_point, adjusted_text, font=text_font, fill=(255, 255, 255))  # White text color
 
             # # Return the excess text for further processing
-            # return excess_text
+            
         else:
             # Draw the original text on the image
-            
-            draw.text(start_point, text, font=text_font, fill=(255, 255, 255))  # White text color
+            draw.text(start_point, line, font=text_font, fill=(255, 255, 255))  # White text color
 
-            # # No excess text
-            # return ''
-    print('Completed')
 
 def fix_text_length(text, text_font, max_width):
     draw = ImageDraw.Draw(Image.new('RGB', (1,1)))
     text_width = draw.textlength(text, font=text_font)
-    
+    original = text
     excess_text = ''
-
+    # print(max_width)
     while text_width > max_width and len(text) > 0:
-        #potential cause of error (most likely cause)
-        excess_text = excess_text + text[:-1]
 
         text = text[:-1]
         text_width = draw.textlength(text, font=text_font)
+    
+    excess_text = original[len(text):]
+    # print(excess_text)
 
     return text, excess_text
 
@@ -385,6 +389,7 @@ def check_results(text):
 
     #This could needs to be optimized
     for line in text.splitlines():
+        print(line)
         if not line == '':
             
             for word in split_pattern.split(line):
