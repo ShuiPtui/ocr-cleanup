@@ -133,7 +133,7 @@ def interface(img):
             corrections = check_results(results)
             
             pil_copy = Image.fromarray(text_removed_img)
-            text_adder(corrections, pil_copy, positions)
+            text_adder(corrections, pil_copy, original_img, positions)
             
             main_window['IMAGE'].update(data=image_to_bytes(np.array(pil_copy)))
             h, w = processed_img.shape[:2]
@@ -277,6 +277,12 @@ def image_preprocessing(img, invert_state=False, morpho_state=False):
 
     return invert
 
+
+def get_text_color(img, position):
+    x, y, w, h = position
+    mean_color = np.mean(img[y:y+h, x:x+w], axis=(0, 1))
+    return tuple(mean_color.astype(np.uint8))
+
 def text_removal(img, invert_state=False):
     h, w = img.shape[:2]
     img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
@@ -323,7 +329,7 @@ def text_removal(img, invert_state=False):
     # cv2.waitKey()
     return img, positions
 
-def text_adder(text, img, positions):
+def text_adder(text, img, original_img, positions):
     
     positions = positions[::-1]
     
@@ -348,7 +354,11 @@ def text_adder(text, img, positions):
         max_width = positions[i][2]
 
         start_point = (positions[i][0], positions[i][1]-10)
+        copy = original_img.copy()
+        h, w = copy.shape[:2]
+        copy = cv2.resize(copy, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
 
+        color = get_text_color(copy, positions[i])
 
         if text_width > max_width:
             # print('exception')
@@ -357,14 +367,15 @@ def text_adder(text, img, positions):
             text_font = new_font
             excess = excess_text
             
+            
             # Draw the adjusted text on the image
-            draw.text(start_point, adjusted_text, font=text_font, fill=(255, 255, 255))  # White text color
+            draw.text(start_point, adjusted_text, font=text_font, fill=color)  # White text color
 
             # # Return the excess text for further processing
             
         else:
             # Draw the original text on the image
-            draw.text(start_point, line, font=text_font, fill=(255, 255, 255))  # White text color
+            draw.text(start_point, line, font=text_font, fill=color)  # White text color
 
 
 def fix_text_length(text, text_font, max_width):
@@ -482,7 +493,7 @@ def word_correction(spell, word):
 #test image 'coffee store.jpg' works well now
 #stop sign image doesn't work with current implementation; likely due to custom config psm
 
-image = cv2.imread('text.png')
+image = cv2.imread('text 2.png')
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 # image = image_preprocessing(image)
 # text = image_ocr(image)
