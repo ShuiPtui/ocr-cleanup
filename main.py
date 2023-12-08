@@ -295,10 +295,11 @@ def text_removal(img, invert_state=False):
 
 def text_adder(text, img, positions):
     print(text)
-    text = text[::-1]
+    # text = text[::-1]
     print(text)
+    print(positions)
     positions = positions[::-1]
-
+    print(positions)
     draw = ImageDraw.Draw(img)
    
     
@@ -312,20 +313,16 @@ def text_adder(text, img, positions):
         # text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', 6) #temporary size
         line = text[i]
         
-
-        
         if len(excess) > 0:
             line = excess + ' ' + line
             excess = ''
 
-        # print('Line = {}'.format(line))
-        
-        
-
         text_width = draw.textlength(line, font=text_font)
         max_width = positions[i][2]
 
-        start_point = (positions[i][0], positions[i][1])
+        start_point = (positions[i][0], positions[i][1]-10)
+        
+
         if text_width > max_width:
             # print('exception')
             # Adjust the text and get the excess text
@@ -364,16 +361,16 @@ def image_ocr(img, config=r'--oem 3 --psm 6'):
 
     results = pt.image_to_string(img, lang='eng', config=config)
     data = pt.image_to_data(img, lang='eng', config=config, output_type=pt.Output.DICT)
-    print(results)
+    # print(results)
 
     num_words = len(data['text'])
-    for n in range(num_words):
-        if data['text'][n].strip():
-            left = data['left'][n]
-            top = data['top'][n]
-            width = data['width'][n]
-            height = data['height'][n]
-            print(f"Bounding Box {n + 1}: Left={left}, Top={top}, Width={width}, Height={height}, Text={data['text'][n]}")
+    # for n in range(num_words):
+    #     if data['text'][n].strip():
+    #         left = data['left'][n]
+    #         top = data['top'][n]
+    #         width = data['width'][n]
+    #         height = data['height'][n]
+    #         print(f"Bounding Box {n + 1}: Left={left}, Top={top}, Width={width}, Height={height}, Text={data['text'][n]}")
 
 
 
@@ -383,34 +380,39 @@ def check_results(text):
     spell = SpellChecker()
     corrected_line = ''
     new_lines = []
-    split_pattern = re.compile(r'[' + re.escape(string.punctuation) + r'\s]+')
+    #split_pattern = re.compile(r'[' + re.escape(string.punctuation) + r'\s]+')
+    split_pattern = re.compile(r'[' + r'\s]+')
     valid = False
-    special_condition = False #for when word correcter is unable to handle the text and returns i
 
     #This could needs to be optimized
     for line in text.splitlines():
-        print(line)
+        # print(valid)
+        # print(special_condition)
         if not line == '':
             
             for word in split_pattern.split(line):
-                if len(corrected_line) > 0 and valid == True and special_condition == False:
+                if len(corrected_line) > 0 and not word == '':
                     corrected_line += ' '
                     valid = False
-                    special_condition = False
+                
 
                 if not word == '':
                     corrected = word_correction(spell, word)
-                    if not corrected == '':
+                    if corrected == None:
+                        corrected = word
+                        corrected_line += corrected.lower()
+                    
+                    if not corrected == '' and not corrected == 'i':
                         valid = valid_word(corrected)
                         if valid:
-                            print(word + ' ' + corrected)
-                            if not corrected == 'i':
-                                corrected_line += corrected.lower()
-                            else:
-                                if corrected == word:
-                                    corrected_line += corrected.lower()
-                                else:
-                                    special_condition = True
+                            # print(word + ' ' + corrected)
+                        
+                            corrected_line += corrected.lower()
+                            
+                    elif not corrected == '':
+                        if corrected == word:
+                            corrected_line += corrected.lower()
+                                
 
             if valid: 
                 new_lines.append(corrected_line)
@@ -419,8 +421,10 @@ def check_results(text):
     return new_lines
 
 def valid_word(word):
+    
     eng_dict = enchant.Dict('en_US')
     if not word in string.punctuation or word.isspace():
+        
         return eng_dict.check(word)
     else:
         return False
