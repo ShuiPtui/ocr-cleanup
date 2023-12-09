@@ -126,8 +126,7 @@ def interface(img):
             results = image_ocr(processed_img, custom_config)
             text_removed_img, positions = text_removal(img, invert_toggle)
             if len(positions) > 0:
-                print(positions)
-
+                
                 corrections = check_results(results)
                 
                 pil_copy = Image.fromarray(text_removed_img)
@@ -252,10 +251,6 @@ def create_main_layout(img):
 
     return layout
 
-# def display_image(img):
-#     cv2.imshow('Image', img)
-#     cv2.waitKey()
-
 def image_preprocessing(img, invert_state=False, morpho_state=False):
     h, w = img.shape[:2]
     img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
@@ -274,21 +269,20 @@ def image_preprocessing(img, invert_state=False, morpho_state=False):
     #perform a morphological transformation. We could add more variety depending on the task at hand
     if morpho_state:
         opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1) #Good for thick text
-        invert = 255 - opening
-        return opening
+        return 255 - opening
     else:
         dilation = cv2.dilate(thresh, kernel, iterations = 1) #Good for thin text
         #invert the image (we want the text to be black and foreground to be white)
-        # invert = 255 - dilation
-        invert = 255 - dilation
-        return dilation
+        return 255 - dilation
 
     
 
 def get_text_color(img, position):
     x, y, w, h = position
     mean_color = np.mean(img[y:y+h, x:x+w], axis=(0, 1))
-    return tuple(mean_color.astype(np.uint8))
+    mean_color = mean_color.astype(np.uint8)
+    
+    return tuple(0 if channel > 128 else 255 for channel in mean_color)
 
 def text_removal(img, invert_state=False):
     h, w = img.shape[:2]
@@ -328,20 +322,14 @@ def text_removal(img, invert_state=False):
             
             
             positions.append([x, y, w, h])
-            # cv2.imshow('image', img[y:y+h, x:x+w])
-            # cv2.waitKey()
+ 
             cv2.rectangle(img, (x, y), (x + w, y + h), (dominant_color), -1) #we can find dominant color using k-means or perform image reconstruction
 
-    # cv2.imshow('image', img)
-    # cv2.waitKey()
     return img, positions
 
 def text_adder(text, img, original_img, positions):
-    
     positions = positions[::-1]
-    
     draw = ImageDraw.Draw(img)
-    
     excess = ''
     
     for i in range(len(text)):
@@ -368,17 +356,14 @@ def text_adder(text, img, original_img, positions):
         color = get_text_color(copy, positions[i]) 
 
         if text_width > max_width:
-            # print('exception')
-            # Adjust the text and get the excess text
+            
+            # Adjust the text and get the excess text with new font
             adjusted_text, excess_text, new_font = resize_text(line, font, current_h, max_width)
             text_font = new_font
             excess = excess_text
             
-            
             # Draw the adjusted text on the image
             draw.text(start_point, adjusted_text, font=text_font, fill=color)  
-
-            # # Return the excess text for further processing
             
         else:
             # Draw the original text on the image
@@ -389,22 +374,18 @@ def fix_text_length(text, text_font, max_width):
     text_width = draw.textlength(text, font=text_font)
     original = text
     excess_text = ''
-    # print(max_width)
+    
     while text_width > max_width and len(text) > 0:
-
         text = text[:-1]
         text_width = draw.textlength(text, font=text_font)
     
     excess_text = original[len(text):]
-    # print(excess_text)
-
+    
     return text, excess_text
 
 #alternative method to handle really long lines
 def resize_text(text, font, current_h, max_width):
-
     draw = ImageDraw.Draw(Image.new('RGB', (1,1)))
-
 
     text_font = ImageFont.truetype(font, current_h)
     text_width = draw.textlength(text, font=text_font)
@@ -427,108 +408,108 @@ def image_ocr(img, config=r'--oem 3 --psm 6'):
     return results
 
 #alternative method to get boundary boxes
-def boxes(img, config=r'--oem 3 --psm 6'):
-    data = pt.image_to_data(img, lang='eng', config=config, output_type=pt.Output.DICT)
+# def boxes(img, config=r'--oem 3 --psm 6'):
+#     data = pt.image_to_data(img, lang='eng', config=config, output_type=pt.Output.DICT)
     
-    num_words = len(data['text'])
+#     num_words = len(data['text'])
 
-    text_data = []
-    for n in range(num_words):
-        if data['text'][n].strip():
-            left = data['left'][n]
-            top = data['top'][n]
-            width = data['width'][n]
-            height = data['height'][n]
-            text_data.append([left, top, width, height, data['text'][n]])
-            # print(f"Bounding Box {n + 1}: Left={left}, Top={top}, Width={width}, Height={height}, Text={data['text'][n]}")
+#     text_data = []
+#     for n in range(num_words):
+#         if data['text'][n].strip():
+#             left = data['left'][n]
+#             top = data['top'][n]
+#             width = data['width'][n]
+#             height = data['height'][n]
+#             text_data.append([left, top, width, height, data['text'][n]])
+#             # print(f"Bounding Box {n + 1}: Left={left}, Top={top}, Width={width}, Height={height}, Text={data['text'][n]}")
     
-    return text_data
+#     return text_data
 
-def text_removal_boxes(img, text_data, invert_state=False):
-    h, w = img.shape[:2]
-    img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    blurred_img = cv2.GaussianBlur(gray, (3,3), 0)
-    if invert_state:
-        thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] #threshold attributes may need to be changed
-    else:
-        thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+# def text_removal_boxes(img, text_data, invert_state=False):
+#     h, w = img.shape[:2]
+#     img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
+#     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+#     blurred_img = cv2.GaussianBlur(gray, (3,3), 0)
+#     if invert_state:
+#         thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] #threshold attributes may need to be changed
+#     else:
+#         thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
 
 
-    close_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15,3))
-    close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, close_kernel, iterations=1)
+#     close_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15,3))
+#     close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, close_kernel, iterations=1)
 
-    dilation_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1)) #values affect the removal
+#     dilation_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1)) #values affect the removal
 
-    #perform a morphological transformation. We could add more variety depending on the task at hand
-    dilation = cv2.dilate(close, dilation_kernel, iterations = 1)
+#     #perform a morphological transformation. We could add more variety depending on the task at hand
+#     dilation = cv2.dilate(close, dilation_kernel, iterations = 1)
 
-    cnts = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+#     cnts = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
 
-    positions = []
+#     positions = []
 
-    pixels = img.reshape((-1,3))
-    kmeans = KMeans(n_clusters=5)
-    kmeans.fit(pixels)
-    colors = kmeans.cluster_centers_
-    counts = np.bincount(kmeans.labels_)
-    dominant_color = colors[counts.argmax()]
+#     pixels = img.reshape((-1,3))
+#     kmeans = KMeans(n_clusters=5)
+#     kmeans.fit(pixels)
+#     colors = kmeans.cluster_centers_
+#     counts = np.bincount(kmeans.labels_)
+#     dominant_color = colors[counts.argmax()]
 
-    for data in text_data:
-        x,y,w,h = data[:4]
-        positions.append([x, y, w, h])
-        cv2.rectangle(img, (x, y), (x + w, y + h), (dominant_color), -1) 
+#     for data in text_data:
+#         x,y,w,h = data[:4]
+#         positions.append([x, y, w, h])
+#         cv2.rectangle(img, (x, y), (x + w, y + h), (dominant_color), -1) 
 
-    return img, positions
+#     return img, positions
 
-def text_adder_boxes(text, img, original_img, text_data):
+# def text_adder_boxes(text, img, original_img, text_data):
     
-    text_data = text_data[::-1]
+#     text_data = text_data[::-1]
 
-    draw = ImageDraw.Draw(img)
+#     draw = ImageDraw.Draw(img)
     
-    excess = ''
+#     excess = ''
     
-    for i in range(len(text_data)):
+#     for i in range(len(text_data)):
         
-        h = text_data[i][3]
-        text = text_data[i][4]
-        font = '/usr/share/fonts/truetype/Nakula/nakula.ttf'
-        current_h = h
-        text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic. Change font to handle other languages
+#         h = text_data[i][3]
+#         text = text_data[i][4]
+#         font = '/usr/share/fonts/truetype/Nakula/nakula.ttf'
+#         current_h = h
+#         text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic. Change font to handle other languages
         
-        line = translate_text(text, 'fr') #change string to handle certain languages
+#         line = translate_text(text, 'fr') #change string to handle certain languages
         
-        if len(excess) > 0:
-            line = excess + ' ' + line
-            excess = ''
+#         if len(excess) > 0:
+#             line = excess + ' ' + line
+#             excess = ''
 
-        text_width = draw.textlength(line, font=text_font)
-        max_width = text_data[i][2]
+#         text_width = draw.textlength(line, font=text_font)
+#         max_width = text_data[i][2]
 
-        start_point = (text_data[i][0], text_data[i][1]-10)
-        copy = original_img.copy()
-        h, w = copy.shape[:2]
-        copy = cv2.resize(copy, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
+#         start_point = (text_data[i][0], text_data[i][1]-10)
+#         copy = original_img.copy()
+#         h, w = copy.shape[:2]
+#         copy = cv2.resize(copy, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
 
-        #color = get_text_color(copy, text_data[i][:4]) #doesn't work well with with backgrounds
+#         #color = get_text_color(copy, text_data[i][:4]) #doesn't work well with with backgrounds
 
-        if text_width > max_width:
+#         if text_width > max_width:
             
-            # Adjust the text and get the excess text
-            adjusted_text, excess_text, new_font = resize_text(line, font, current_h, max_width)
-            text_font = new_font
-            excess = excess_text
+#             # Adjust the text and get the excess text
+#             adjusted_text, excess_text, new_font = resize_text(line, font, current_h, max_width)
+#             text_font = new_font
+#             excess = excess_text
             
-            # Draw the adjusted text on the image
-            draw.text(start_point, adjusted_text, font=text_font, fill=(0,0,0)) 
+#             # Draw the adjusted text on the image
+#             draw.text(start_point, adjusted_text, font=text_font, fill=(0,0,0)) 
 
-            # # Return the excess text for further processing
+#             # # Return the excess text for further processing
             
-        else:
-            # Draw the original text on the image
-            draw.text(start_point, line, font=text_font, fill=(0,0,0))  
+#         else:
+#             # Draw the original text on the image
+#             draw.text(start_point, line, font=text_font, fill=(0,0,0))  
 
 
 def check_results(text):
@@ -588,7 +569,7 @@ def valid_word(word):
 def word_correction(spell, word):
     return spell.correction(word)
 
-image = cv2.imread('text.png')
+image = cv2.imread('text 3.png')
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
 interface(image)
