@@ -10,7 +10,7 @@ TODO:
         
 
 Current issues:
-        - None so far
+        - Current implementation of finding boundary boxes is made for lines of text. Using image_to_boxes could work for individual text scattered around
         
 
 Fixed issues:
@@ -130,14 +130,25 @@ def interface(img):
             processed_img = image_preprocessing(img, invert_toggle, morpho_toggle)
             results = image_ocr(processed_img, custom_config)
             text_removed_img, positions = text_removal(img, invert_toggle)
-            corrections = check_results(results)
+            if len(positions) > 0 and len(positions) == len(results):
+                print(positions)
+
+                corrections = check_results(results)
+                
+                pil_copy = Image.fromarray(text_removed_img)
+                text_adder(corrections, pil_copy, original_img, positions)
             
-            pil_copy = Image.fromarray(text_removed_img)
-            text_adder(corrections, pil_copy, original_img, positions)
-            
-            main_window['IMAGE'].update(data=image_to_bytes(np.array(pil_copy)))
-            h, w = processed_img.shape[:2]
-            main_window.size = (w+400, h+100)
+                main_window['IMAGE'].update(data=image_to_bytes(np.array(pil_copy)))
+                h, w = processed_img.shape[:2]
+                main_window.size = (w+400, h+100)
+            elif len(positions) != len(results) and len(positions) > 0:
+                text_boxes = boxes(processed_img, custom_config)
+                text_removed_img, positions = text_removal_boxes(img, text_boxes, invert_toggle)
+                corrections = check_results(results)
+                pil_copy = Image.fromarray(text_removed_img)
+                text_adder_boxes(corrections, pil_copy, original_img, text_boxes)
+            else:
+                print('No lines detected')
 
     
         elif event == 'INVERT':
@@ -277,7 +288,6 @@ def image_preprocessing(img, invert_state=False, morpho_state=False):
 
     return invert
 
-
 def get_text_color(img, position):
     x, y, w, h = position
     mean_color = np.mean(img[y:y+h, x:x+w], axis=(0, 1))
@@ -336,7 +346,8 @@ def text_adder(text, img, original_img, positions):
     draw = ImageDraw.Draw(img)
     
     excess = ''
-    
+    print(text)
+    print(len(text))
     for i in range(len(text)):
         h = positions[-i][3]
         
@@ -415,23 +426,116 @@ def resize_text(text, font, current_h, max_width):
     return text, '', text_font
 
 def image_ocr(img, config=r'--oem 3 --psm 6'):
-
     results = pt.image_to_string(img, lang='eng', config=config)
-    data = pt.image_to_data(img, lang='eng', config=config, output_type=pt.Output.DICT)
-    # print(results)
-
-    num_words = len(data['text'])
-    # for n in range(num_words):
-    #     if data['text'][n].strip():
-    #         left = data['left'][n]
-    #         top = data['top'][n]
-    #         width = data['width'][n]
-    #         height = data['height'][n]
-    #         print(f"Bounding Box {n + 1}: Left={left}, Top={top}, Width={width}, Height={height}, Text={data['text'][n]}")
-
-
+    print(results)
 
     return results
+
+#alternative method to get boundary boxes
+def boxes(img, config=r'--oem 3 --psm 6'):
+    data = pt.image_to_data(img, lang='eng', config=config, output_type=pt.Output.DICT)
+    
+    num_words = len(data['text'])
+
+    text_data = []
+    for n in range(num_words):
+        if data['text'][n].strip():
+            left = data['left'][n]
+            top = data['top'][n]
+            width = data['width'][n]
+            height = data['height'][n]
+            text_data.append([left, top, width, height, data['text'][n]])
+            # print(f"Bounding Box {n + 1}: Left={left}, Top={top}, Width={width}, Height={height}, Text={data['text'][n]}")
+    
+    return text_data
+
+def text_removal_boxes(img, text_data, invert_state=False):
+    h, w = img.shape[:2]
+    img = cv2.resize(img, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    blurred_img = cv2.GaussianBlur(gray, (3,3), 0)
+    if invert_state:
+        thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1] #threshold attributes may need to be changed
+    else:
+        thresh = cv2.threshold(blurred_img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+
+
+    close_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15,3))
+    close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, close_kernel, iterations=1)
+
+    dilation_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,1)) #values affect the removal
+
+    #perform a morphological transformation. We could add more variety depending on the task at hand
+    dilation = cv2.dilate(close, dilation_kernel, iterations = 1)
+
+    cnts = cv2.findContours(dilation, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+
+    positions = []
+
+    pixels = img.reshape((-1,3))
+    kmeans = KMeans(n_clusters=5)
+    kmeans.fit(pixels)
+    colors = kmeans.cluster_centers_
+    counts = np.bincount(kmeans.labels_)
+    dominant_color = colors[counts.argmax()]
+
+    for data in text_data:
+        x,y,w,h = data[:4]
+        positions.append([x, y, w, h])
+        cv2.rectangle(img, (x, y), (x + w, y + h), (dominant_color), -1) 
+
+    return img, positions
+
+def text_adder_boxes(text, img, original_img, text_data):
+    
+    text_data = text_data[::-1]
+
+    draw = ImageDraw.Draw(img)
+    
+    excess = ''
+    
+    for i in range(len(text_data)):
+        print(i)
+        print(text_data)
+        h = text_data[i][3]
+        text = text_data[i][4]
+        font = '/usr/share/fonts/truetype/Nakula/nakula.ttf'
+        current_h = h
+        text_font = ImageFont.truetype('/usr/share/fonts/truetype/Nakula/nakula.ttf', h) #Make this more dynamic. Change font to handle other languages
+        
+        line = translate_text(text, 'fr') #change string to handle certain languages
+        
+        if len(excess) > 0:
+            line = excess + ' ' + line
+            excess = ''
+
+        text_width = draw.textlength(line, font=text_font)
+        max_width = text_data[i][2]
+
+        start_point = (text_data[i][0], text_data[i][1]-10)
+        copy = original_img.copy()
+        h, w = copy.shape[:2]
+        copy = cv2.resize(copy, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
+
+        color = get_text_color(copy, text_data[i][:4])
+
+        if text_width > max_width:
+            # print('exception')
+            # Adjust the text and get the excess text
+            adjusted_text, excess_text, new_font = resize_text(line, font, current_h, max_width)
+            text_font = new_font
+            excess = excess_text
+            
+            # Draw the adjusted text on the image
+            draw.text(start_point, adjusted_text, font=text_font, fill=color)  # White text color
+
+            # # Return the excess text for further processing
+            
+        else:
+            # Draw the original text on the image
+            draw.text(start_point, line, font=text_font, fill=color)  # White text color
+
 
 def check_results(text):
     spell = SpellChecker()
@@ -493,7 +597,7 @@ def word_correction(spell, word):
 #test image 'coffee store.jpg' works well now
 #stop sign image doesn't work with current implementation; likely due to custom config psm
 
-image = cv2.imread('text 2.png')
+image = cv2.imread('costco.png')
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 # image = image_preprocessing(image)
 # text = image_ocr(image)
