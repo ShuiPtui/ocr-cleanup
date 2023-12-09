@@ -141,12 +141,12 @@ def interface(img):
                 main_window['IMAGE'].update(data=image_to_bytes(np.array(pil_copy)))
                 h, w = processed_img.shape[:2]
                 main_window.size = (w+400, h+100)
-            elif len(positions) != len(results) and len(positions) > 0:
-                text_boxes = boxes(processed_img, custom_config)
-                text_removed_img, positions = text_removal_boxes(img, text_boxes, invert_toggle)
-                corrections = check_results(results)
-                pil_copy = Image.fromarray(text_removed_img)
-                text_adder_boxes(corrections, pil_copy, original_img, text_boxes)
+            # elif len(positions) != len(results) and len(positions) > 0: #to be finished
+            #     text_boxes = boxes(processed_img, custom_config)
+            #     text_removed_img, positions = text_removal_boxes(img, text_boxes, invert_toggle)
+            #     corrections = check_results(results)
+            #     pil_copy = Image.fromarray(text_removed_img)
+            #     text_adder_boxes(corrections, pil_copy, original_img, text_boxes)
             else:
                 print('No lines detected')
 
