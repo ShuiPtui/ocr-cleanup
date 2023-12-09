@@ -10,13 +10,10 @@ Current issues:
 """
 
 
-
 import pytesseract as pt
 import cv2
 from PIL import Image, ImageDraw, ImageFont
-# import matplotlib.pyplot as plt
 import numpy as np
-# import nltk                            #will need to install #replaced by enchant
 from spellchecker import SpellChecker   #will need to install
 import string
 import re
@@ -26,7 +23,6 @@ import io
 from googletrans import Translator
 from sklearn.cluster import KMeans
 
-# nltk.download('brown') #downloads required set; slower than nltk.corpus.words but is able to deal with numbers and capitals #Edit: Enchant is so much faster
 #include 'pytesseract.pytesseract.tesseract_cmd = r'<full_path_to_your_tesseract_executable>' if you don't have tesseract in your PATH
 
 # Page segmentation modes:
