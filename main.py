@@ -1,37 +1,12 @@
-"""
-TODO:
-        1. Add more buttons to dynamic change image preprocessing (optional; current methods should be good enough for basic stuff)
-        2. Add a crop function to the interface (optional; user can just provide cropped images)
-        
-  
-        
-        9. Perform additional computer photography stuff (perhaps making special fonts or giving replaced text some effect)
-        10. Replace existing code with own code (Optional)
-        
+"""  
 
 Current issues:
         - Current implementation of finding boundary boxes is made for lines of text. Using image_to_boxes could work for individual text scattered around
         - Fix alternative method
+        - Reliability of contours for other images is not great
         
 
-Fixed issues:
-        - Currently, widths are increased to crazy sizes, possible culprit is the method to deal with
-        way too long text 
-        (EDIT: I believe the error is caused by how I handle the excess text; fixing
-        the way it saves the excess text may prevent the error.)
-        (EDIT 2: Pretty sure the error is how I am saving the excess text)
-        (EDIT 3: Fixed, it was due to how I was storing excess string)
-        - Font size needs to be dynamically generated to either best fit the boundary or perform some
-        lazy method to resize it (not best fit)
 
-COMPLETED:
-        3. Add a button that opens a help window
-        4. Add a button that reverts displayed image to original image
-        5. ***IMPORTANT*** Use image_to_data to find boundary boxes as a way to determine text location  ***IMPORTANT***
-        6. ***IMPORTANT*** Implement text deletion from image ***IMPORTANT***
-        7. ***IMPORTANT*** Implement text drawing (PIL or cv2) ***IMPORTANT***
-        8. Implement some translation API (even chatgpt works)
-        11. Implement another button to handle OCR and text replacement 
 """
 
 
