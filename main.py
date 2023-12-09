@@ -11,6 +11,7 @@ TODO:
 
 Current issues:
         - Current implementation of finding boundary boxes is made for lines of text. Using image_to_boxes could work for individual text scattered around
+        - Fix alternative method
         
 
 Fixed issues:
@@ -38,7 +39,7 @@ COMPLETED:
 import pytesseract as pt
 import cv2
 from PIL import Image, ImageDraw, ImageFont
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 # import nltk                            #will need to install #replaced by enchant
 from spellchecker import SpellChecker   #will need to install
@@ -124,7 +125,7 @@ def interface(img):
             processed_img = image_preprocessing(img, invert_toggle, morpho_toggle)
             results = image_ocr(processed_img, custom_config)
             text_removed_img, positions = text_removal(img, invert_toggle)
-            if len(positions) > 0 and len(positions) == len(results):
+            if len(positions) > 0:
                 print(positions)
 
                 corrections = check_results(results)
@@ -251,9 +252,9 @@ def create_main_layout(img):
 
     return layout
 
-def display_image(img):
-    cv2.imshow('Image', img)
-    cv2.waitKey()
+# def display_image(img):
+#     cv2.imshow('Image', img)
+#     cv2.waitKey()
 
 def image_preprocessing(img, invert_state=False, morpho_state=False):
     h, w = img.shape[:2]
@@ -274,13 +275,15 @@ def image_preprocessing(img, invert_state=False, morpho_state=False):
     if morpho_state:
         opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1) #Good for thick text
         invert = 255 - opening
+        return opening
     else:
         dilation = cv2.dilate(thresh, kernel, iterations = 1) #Good for thin text
         #invert the image (we want the text to be black and foreground to be white)
         # invert = 255 - dilation
         invert = 255 - dilation
+        return dilation
 
-    return invert
+    
 
 def get_text_color(img, position):
     x, y, w, h = position
@@ -362,7 +365,7 @@ def text_adder(text, img, original_img, positions):
         h, w = copy.shape[:2]
         copy = cv2.resize(copy, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
 
-        color = get_text_color(copy, positions[i])
+        color = get_text_color(copy, positions[i]) 
 
         if text_width > max_width:
             # print('exception')
@@ -373,13 +376,13 @@ def text_adder(text, img, original_img, positions):
             
             
             # Draw the adjusted text on the image
-            draw.text(start_point, adjusted_text, font=text_font, fill=color)  # White text color
+            draw.text(start_point, adjusted_text, font=text_font, fill=color)  
 
             # # Return the excess text for further processing
             
         else:
             # Draw the original text on the image
-            draw.text(start_point, line, font=text_font, fill=color)  # White text color
+            draw.text(start_point, line, font=text_font, fill=color)  
 
 def fix_text_length(text, text_font, max_width):
     draw = ImageDraw.Draw(Image.new('RGB', (1,1)))
@@ -509,7 +512,7 @@ def text_adder_boxes(text, img, original_img, text_data):
         h, w = copy.shape[:2]
         copy = cv2.resize(copy, (1000, int(h * (1000 / float(w)))), interpolation=cv2.INTER_CUBIC)
 
-        color = get_text_color(copy, text_data[i][:4])
+        #color = get_text_color(copy, text_data[i][:4]) #doesn't work well with with backgrounds
 
         if text_width > max_width:
             
@@ -519,13 +522,13 @@ def text_adder_boxes(text, img, original_img, text_data):
             excess = excess_text
             
             # Draw the adjusted text on the image
-            draw.text(start_point, adjusted_text, font=text_font, fill=color)  # White text color
+            draw.text(start_point, adjusted_text, font=text_font, fill=(0,0,0)) 
 
             # # Return the excess text for further processing
             
         else:
             # Draw the original text on the image
-            draw.text(start_point, line, font=text_font, fill=color)  # White text color
+            draw.text(start_point, line, font=text_font, fill=(0,0,0))  
 
 
 def check_results(text):
@@ -585,7 +588,7 @@ def valid_word(word):
 def word_correction(spell, word):
     return spell.correction(word)
 
-image = cv2.imread('text 2.png')
+image = cv2.imread('text.png')
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
 interface(image)
