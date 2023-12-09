@@ -110,12 +110,6 @@ def interface(img):
             oemode = int(values['OEM'])
             custom_config = r'--oem {} --psm {}'.format(oemode, psmode)
             processed_img = image_preprocessing(img, invert_toggle, morpho_toggle)
-            # results = image_ocr(processed_img, custom_config)
-            # text_removed_img, positions = text_removal(img, invert_toggle)
-            # corrections = check_results(results)
-            
-            # pil_copy = Image.fromarray(text_removed_img)
-            # text_adder(corrections, pil_copy, positions)
             
 
             main_window['IMAGE'].update(data=image_to_bytes(processed_img))
@@ -346,8 +340,7 @@ def text_adder(text, img, original_img, positions):
     draw = ImageDraw.Draw(img)
     
     excess = ''
-    print(text)
-    print(len(text))
+    
     for i in range(len(text)):
         h = positions[-i][3]
         
@@ -387,7 +380,6 @@ def text_adder(text, img, original_img, positions):
         else:
             # Draw the original text on the image
             draw.text(start_point, line, font=text_font, fill=color)  # White text color
-
 
 def fix_text_length(text, text_font, max_width):
     draw = ImageDraw.Draw(Image.new('RGB', (1,1)))
@@ -496,8 +488,7 @@ def text_adder_boxes(text, img, original_img, text_data):
     excess = ''
     
     for i in range(len(text_data)):
-        print(i)
-        print(text_data)
+        
         h = text_data[i][3]
         text = text_data[i][4]
         font = '/usr/share/fonts/truetype/Nakula/nakula.ttf'
@@ -521,7 +512,7 @@ def text_adder_boxes(text, img, original_img, text_data):
         color = get_text_color(copy, text_data[i][:4])
 
         if text_width > max_width:
-            # print('exception')
+            
             # Adjust the text and get the excess text
             adjusted_text, excess_text, new_font = resize_text(line, font, current_h, max_width)
             text_font = new_font
@@ -593,16 +584,8 @@ def valid_word(word):
 
 def word_correction(spell, word):
     return spell.correction(word)
-    
-#test image 'coffee store.jpg' works well now
-#stop sign image doesn't work with current implementation; likely due to custom config psm
 
-image = cv2.imread('costco.png')
+image = cv2.imread('text 2.png')
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-# image = image_preprocessing(image)
-# text = image_ocr(image)
-# display_image(image)
 
-# results = check_results(text) 
-# print(results)
 interface(image)
